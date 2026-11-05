@@ -58,7 +58,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       result = { configOptions };
       break;
     case "session/prompt":
-      if (!m.params.prompt.some((p) => p.text === "/noop"))
+      if (!m.params.prompt.some((p) => ["/noop", "/compact"].includes(p.text)))
         send({
           method: "session/update",
           params: {

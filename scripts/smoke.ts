@@ -1,4 +1,5 @@
 // Opt-in: uses the signed-in account and sends one short model prompt.
+import { compactInput } from "./compact-input.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +13,27 @@ import { createProvider, PROVIDER_ID } from "../provider.ts";
 
 const cwd = mkdtempSync(join(tmpdir(), "bb-agy-live-"));
 const transport = createTransport();
+const originalTake = transport.takeMessages;
+let sawCompaction = false;
+let compactedContext = false;
+transport.takeMessages = () => {
+  const messages = originalTake();
+  for (const m of messages as any[]) {
+    if (
+      m.method === "thread/delta" &&
+      m.params.deltas.some(
+        (d: any) => d.kind === "item.open" && d.item?.type === "compaction",
+      )
+    )
+      sawCompaction = true;
+    if (
+      m.method === "thread/delta" &&
+      m.params.deltas.some((d: any) => d.kind === "context.compacted")
+    )
+      compactedContext = true;
+  }
+  return messages;
+};
 let report;
 try {
   report = await experimental_runBridgeConformance({
@@ -19,6 +41,7 @@ try {
     transport,
     session: {
       cwd,
+      zeroWorkPromptInput: compactInput,
       promptInput: [
         {
           type: "text",
@@ -55,3 +78,10 @@ for (const result of report!.results) {
     );
   } else assert.notEqual(result.status, "fail", result.detail);
 }
+
+assert.ok(sawCompaction, "Native /compact must produce a BB compaction item.");
+
+assert.ok(
+  compactedContext,
+  "Native /compact must confirm successful context compaction.",
+);

@@ -1,5 +1,14 @@
 import type { PluginProviderDeclaration } from "@get-bb/plugin-sdk";
 
+// Standard native folders, verified against Google's customization discovery guide.
+export const NATIVE_SKILL_ROOTS = {
+  user: [
+    ".gemini/antigravity-cli/skills",
+    ".gemini/skills",
+    ".gemini/config/skills",
+  ],
+  project: [{ path: ".agents/skills", ancestors: true }],
+};
 export const PROVIDER_ID = "antigravity-native";
 export interface Settings {
   command: string;
@@ -13,7 +22,7 @@ export function createProvider(settings: Settings): PluginProviderDeclaration {
     id: PROVIDER_ID,
     displayName: "Antigravity Native",
     family: "acp",
-    icon: "Orbit",
+    icon: "./icons/antigravity.svg",
     strings: {
       signInHint: "Run `agy acp --login` on this machine, then retry.",
       expiredHint:
@@ -21,6 +30,7 @@ export function createProvider(settings: Settings): PluginProviderDeclaration {
       installUrl: "https://antigravity.google/docs/getting-started",
     },
     experimental_visibility: "installed",
+    experimental_nativeSkillRoots: NATIVE_SKILL_ROOTS,
     experimental_bridgeOptions: {
       acpDialect: "acp",
       acpLaunchSpec: {
@@ -33,6 +43,7 @@ export function createProvider(settings: Settings): PluginProviderDeclaration {
           ...(settings.sandbox ? ["--sandbox"] : []),
         ],
         env: {},
+        nativeSkillRoots: NATIVE_SKILL_ROOTS,
         permissionCli: {
           // Flags belong after the acp subcommand. BB's normal mode keeps
           // native permission requests; full access explicitly bypasses them.
@@ -41,11 +52,11 @@ export function createProvider(settings: Settings): PluginProviderDeclaration {
         },
       },
     },
-    maintenance: { health: true, usage: false, installation: false },
+    maintenance: { health: true, usage: true, installation: false },
     capabilities: {
       supportsServiceTier: false,
       supportsNativeUserQuestion: false,
-      supportsManualCompaction: false,
+      supportsManualCompaction: true,
       supportsThreadArchive: false,
       supportsThreadRename: false,
       fork: "none",

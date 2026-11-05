@@ -1,3 +1,4 @@
+import { compactInput } from "../scripts/compact-input.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
@@ -49,7 +50,7 @@ test("published bridge passes protocol conformance with native-shaped launch fla
       session: {
         cwd,
         promptInput: [{ type: "text", text: "hello", mentions: [] }],
-        zeroWorkPromptInput: [{ type: "text", text: "/noop", mentions: [] }],
+        zeroWorkPromptInput: compactInput,
         options: {
           permissionMode: "full",
           permissionScope: "full",
@@ -79,5 +80,67 @@ test("published bridge passes protocol conformance with native-shaped launch fla
   } finally {
     await transport.close?.();
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("native roots reach both BB skill discovery and ACP reconciliation", () => {
+  const provider = createProvider({ command: "agy", sandbox: false });
+  const launch = experimental_acpLaunchSpecSchema.parse(
+    provider.experimental_bridgeOptions?.acpLaunchSpec,
+  );
+  assert.deepEqual(
+    launch.nativeSkillRoots,
+    provider.experimental_nativeSkillRoots,
+  );
+  assert.ok(
+    launch.nativeSkillRoots?.user.includes(".gemini/antigravity-cli/skills"),
+  );
+  assert.deepEqual(launch.nativeSkillRoots?.project, [
+    { path: ".agents/skills", ancestors: true },
+  ]);
+  assert.equal(provider.capabilities.supportsManualCompaction, true);
+});
+
+test("provider and package branding use the identical safe SVG asset", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const manifest = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  );
+  const icon = createProvider({ command: "agy", sandbox: false }).icon;
+  assert.equal(icon, manifest.bb.branding.icon);
+  const svg = await readFile(
+    new URL("../icons/antigravity.svg", import.meta.url),
+    "utf8",
+  );
+  assert.ok(svg.includes('viewBox="0 0 24 24"'));
+  assert.doesNotMatch(svg, /<script|<foreignObject|(?:href|src)=/i);
+});
+
+test("maintenance rejects malformed requests without launching a CLI", async () => {
+  const transport = createTransport();
+  try {
+    for (const [id, method] of [
+      [1, "provider/usage"],
+      [2, "provider/health"],
+    ] as const) {
+      transport.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          method,
+          params: { providerId: PROVIDER_ID },
+        }),
+      );
+    }
+    const responses: any[] = [];
+    const deadline = Date.now() + 5000;
+    while (responses.length < 2 && Date.now() < deadline) {
+      responses.push(...transport.takeMessages());
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.equal(responses.length, 2);
+    for (const m of responses) assert.equal(m.error.code, -32602);
+  } finally {
+    await transport.close?.();
   }
 });

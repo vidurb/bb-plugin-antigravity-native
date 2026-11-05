@@ -7,7 +7,8 @@ print-mode subprocess per turn, or conversation database polling.
 The plugin registers `antigravity-native` using BB's published ACP bridge.
 Models, reasoning levels, and session modes come from the signed-in agent.
 BB handles streamed replies, tool calls, approvals, cancellation, MCP tools,
-and session resume.
+and session resume. The plugin adds account quota reporting, native skill
+discovery, and BB’s manual compaction action.
 
 ## Requirements
 
@@ -64,6 +65,47 @@ sessions preserve native permission requests and BB's approval handling.
 BB full access additionally passes `--dangerously-skip-permissions`.
 Native session modes can also affect which actions require approval.
 
+## Usage and health
+
+BB's Provider usage panel can read Antigravity's weekly and five-hour quota
+windows on the selected machine. The collector invokes
+`agy -p /usage --output-format json`, checks that it performed zero model
+turns and consumed zero tokens, then maps the returned remaining fractions to
+BB's used percentages. Results are cached for 60 seconds; concurrent requests
+share one lookup. Errors are briefly cached and are never shown as zero usage.
+
+The command currently returns structured `command.data.groups` in CLI 1.5.0.
+That output shape may change. If a future CLI unexpectedly generates a model
+turn, the collector stops further automatic reads. After updating the CLI,
+clear only this plugin's `quota-*.json` files in its **bridge data directory on
+the affected machine** to retry. No Google credentials are read or stored by
+the plugin. The cache contains quota windows and timestamps only.
+
+Health checks verify the executable, native `acp` support, and an authenticated
+ACP session without sending a model prompt. They report missing CLI,
+unsupported CLI, missing/expired authentication, unknown failure, or ready.
+They coalesce requests and cache results for 30 seconds. CLI subprocesses have
+time and output limits and are stopped when the bridge closes.
+
+## Compaction and native skills
+
+Use BB's `/compact` action to summarize the current native session. This uses
+BB's built-in command metadata and produces a compaction item in the timeline.
+The native agent performs compaction; model quota may be consumed.
+
+BB lists standard Antigravity skills from:
+
+- `~/.gemini/antigravity-cli/skills/`
+- `~/.gemini/skills/`
+- `~/.gemini/config/skills/`
+- `.agents/skills/` in the workspace and repository ancestors
+
+These roots are also passed to the ACP bridge for native skill reconciliation.
+Custom manifest paths and plugin-bundled skill roots are not enumerated by the
+plugin yet. See Google's
+[customization discovery guide](https://antigravity.google/docs/customization-discovery?tab=cli)
+for native precedence and customization rules.
+
 ## Development and validation
 
 ```sh
@@ -73,22 +115,28 @@ npm test
 npm run build
 npm run test:live
 npm run test:tools
+npm run test:maintenance
+npm run test:skills
 ```
 
 `npm test` runs offline against a deterministic ACP peer through the real
 published BB bridge. It covers protocol conformance, streamed turns, resume,
-launch flags, and launch-spec validation. Tests run the bridge in a child
+launch flags, launch-spec validation, quota parsing and caching, health states,
+process cancellation/output bounds, native roots, and branding. Tests run the bridge in a child
 process because it owns stdout and exits when its stdin closes.
 
-The two opt-in live tests use the local signed-in account and spend model
-quota. `test:live` checks chat and resume. `test:tools` exposes a read-only BB
+The opt-in live tests use the local signed-in account. `test:live` checks chat,
+resume, and completed compaction, and `test:tools` also spends model quota. `test:tools` exposes a read-only BB
 MCP tool and verifies that the agent calls it and returns a random code
-available only in the tool result. `AGY_COMMAND` overrides the test executable.
+available only in the tool result. `test:maintenance` verifies native quotas and
+authentication; `test:skills` verifies native discovery of a temporary workspace
+skill without a model prompt. `AGY_COMMAND` overrides the test executable.
+Set `AGY_TEST_BUNDLE=1` to test the built host artifact instead of TypeScript
+source (run the build first).
 
 ## Current limits
 
-No fork, provider usage panel, archive/rename forwarding, or dedicated BB
-compaction action is advertised. Agent-provided slash commands and session
+No fork or archive/rename forwarding is advertised. Agent-provided slash commands and session
 modes remain available through ACP where supported by BB.
 
 SDK 0.6.104's generic bridge advertises `fork: tip` in its protocol handshake
@@ -96,6 +144,11 @@ before it discovers whether an agent supports forks. BB intersects this with
 this plugin's `fork: none` declaration. The direct live conformance test
 reports that specific upstream mismatch and requires all other checks to
 pass; it does not claim fork support.
+
+The global BB Providers settings page currently queries the server machine.
+An installed-only provider can therefore appear in a Mac's thread composer
+while being absent from that page when the server has no `agy`. This requires
+a machine-aware settings change in BB; it is not fixed by this plugin.
 
 This is an independent community plugin, not affiliated with Google or BB.
 

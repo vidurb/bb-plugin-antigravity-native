@@ -26,3 +26,20 @@ keep native approval requests. Do not change access to fix a failed tool.
 The provider doesn't install agy or adapters. Update agy on the target
 machine if the `acp` subcommand is missing. Native logs are under
 `~/.gemini/antigravity-cli/log/acp-*.log`.
+
+## Usage, health, and skills
+
+The provider reports account quota windows in BB's Provider usage panel on the
+selected machine. Quota reads use native `agy -p /usage --output-format json`
+and are cached for 60 seconds. Never interpret a collection error as zero
+usage. A detected model turn disables subsequent automatic reads; after
+updating agy, clear only the plugin's `quota-*.json` bridge-cache files on that
+machine before retrying.
+
+Health checks test native ACP and cached authentication without a model prompt.
+Use BB's built-in `/compact` action for session summarization.
+
+BB discovers standard skills in `~/.gemini/antigravity-cli/skills`,
+`~/.gemini/skills`, `~/.gemini/config/skills`, and workspace/ancestor
+`.agents/skills`. Custom manifests and installed native plugin skills are not
+enumerated by this plugin.

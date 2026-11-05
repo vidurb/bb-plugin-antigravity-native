@@ -15,9 +15,9 @@
   },
   "bb": {
     "name": "Antigravity Native",
-    "description": "Run Antigravity threads through the native agy acp server with models, reasoning, and tool approvals in BB.",
+    "description": "Run Antigravity coding tasks in BB with native ACP, account quota reporting, tool approvals, skills, and compaction.",
     "branding": {
-      "icon": "Orbit"
+      "icon": "./icons/antigravity.svg"
     },
     "server": "./server.ts",
     "host": "./host.ts",
@@ -30,10 +30,13 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "test:live": "node --experimental-strip-types scripts/smoke.ts",
-    "test:tools": "node --experimental-strip-types scripts/smoke-tools.ts"
+    "test:tools": "node --experimental-strip-types scripts/smoke-tools.ts",
+    "test:maintenance": "node --experimental-strip-types scripts/smoke-maintenance.ts --health",
+    "test:skills": "node --experimental-strip-types scripts/smoke-skills.ts"
   },
   "dependencies": {
-    "@get-bb/plugin-sdk": "0.6.104"
+    "@get-bb/plugin-sdk": "0.6.104",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
