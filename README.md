@@ -63,6 +63,10 @@ Launch is `agy acp --process-per-session`, with optional `--sandbox`.
 Process isolation enables editor-provided HTTP MCP servers. Normal BB
 sessions preserve native permission requests and BB's approval handling.
 BB full access additionally passes `--dangerously-skip-permissions`.
+
+BB's **Approve for me** mode is not supported by the shared ACP bridge.
+Enabling the sandbox does not enable Antigravity's native Auto mode. Native
+permission requests in Accept Edits are forwarded to BB for your approval.
 Native session modes can also affect which actions require approval.
 
 ## Usage and health
