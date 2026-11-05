@@ -8,15 +8,17 @@ import {
   experimental_acpProviderBridge as acp,
   experimental_acpLaunchSpecSchema,
 } from "@get-bb/plugin-sdk/provider-bridge/acp";
-import { createHealthChecker } from "./health.ts";
+import { authStatusFromUsage, createHealthChecker } from "./health.ts";
 import { createUsageCollector } from "./usage.ts";
 import { stopMaintenanceProcesses } from "./process.ts";
 import { PROVIDER_ID } from "./provider.ts";
 
 const io = createBridgeIo();
 const collectUsage = createUsageCollector();
-const checkHealth = createHealthChecker();
 let dataDir: string | undefined;
+const checkHealth = createHealthChecker(async (command, env) =>
+  authStatusFromUsage(await collectUsage(command, dataDir, env)),
+);
 export const experimental_providerBridge = experimental_defineProviderBridge({
   start(context) {
     dataDir = context.dataDir;
@@ -40,6 +42,10 @@ export const experimental_providerBridge = experimental_defineProviderBridge({
     }
     const { id, params } = envelope.data;
     const parsed = providerMaintenanceParamsSchema.safeParse(params);
+    if (parsed.success && parsed.data.providerId !== PROVIDER_ID) {
+      io.sendResult(id, { supported: false });
+      return;
+    }
     const launch = experimental_acpLaunchSpecSchema.safeParse(
       parsed.success ? parsed.data.providerOptions?.acpLaunchSpec : undefined,
     );
@@ -51,14 +57,15 @@ export const experimental_providerBridge = experimental_defineProviderBridge({
       );
       return;
     }
-    if (parsed.data.providerId !== PROVIDER_ID) {
-      io.sendResult(id, { supported: false });
-      return;
-    }
     const operation =
       envelope.data.method === "provider/usage"
-        ? collectUsage(launch.data.command, dataDir, launch.data.env)
-        : checkHealth(launch.data.command, launch.data.env, parsed.data.cwd);
+        ? collectUsage(
+            launch.data.command,
+            dataDir,
+            launch.data.env,
+            parsed.data.refresh === true,
+          )
+        : checkHealth(launch.data.command, launch.data.env);
     void operation.then(
       (result) => io.sendResult(id, result),
       () => io.sendError(id, -32603, "Antigravity maintenance failed."),

@@ -41,13 +41,13 @@ for await (const line of createInterface({ input: process.stdin })) {
         agentInfo: { name: "Native fixture", version: "1.5.0" },
         agentCapabilities: {
           loadSession: true,
-          sessionCapabilities: { resume: {}, fork: {} },
+          // Matches agy 1.5.0, which advertises no session/fork.
+          sessionCapabilities: { resume: {}, close: {}, load: {}, list: {} },
         },
         authMethods: [],
       };
       break;
     case "session/new":
-    case "session/fork":
       result = { sessionId: randomUUID(), configOptions };
       break;
     case "session/resume":

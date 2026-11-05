@@ -9,24 +9,24 @@ export const NATIVE_SKILL_ROOTS = {
   ],
   project: [{ path: ".agents/skills", ancestors: true }],
 };
+export const PLUGIN_ID = "antigravity-native";
 export const PROVIDER_ID = "antigravity-native";
+export const DEFAULT_COMMAND = "agy";
 export interface Settings {
   command: string;
   sandbox: boolean;
 }
 
 export function createProvider(settings: Settings): PluginProviderDeclaration {
-  const command = settings.command.trim();
-  if (!command) throw new Error("Antigravity CLI command must not be empty.");
+  const command = settings.command.trim() || DEFAULT_COMMAND;
   return {
     id: PROVIDER_ID,
     displayName: "Antigravity Native",
     family: "acp",
     icon: "./icons/antigravity.svg",
     strings: {
-      signInHint: "Run `agy acp --login` on this machine, then retry.",
-      expiredHint:
-        "Run `agy acp --login` on this machine to refresh your sign-in.",
+      signInHint: `Run \`${command} acp --login\` on this machine, then retry.`,
+      expiredHint: `Run \`${command} acp --login\` on this machine to refresh your sign-in.`,
       installUrl: "https://antigravity.google/docs/getting-started",
     },
     experimental_visibility: "installed",

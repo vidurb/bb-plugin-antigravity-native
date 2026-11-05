@@ -1,5 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { PLUGIN_ID, PROVIDER_ID } from "./provider.ts";
 import {
   usageSourceRpcContract,
   usageListMethod,
@@ -14,11 +15,17 @@ const locatorSchema = z.tuple([z.string().min(1), z.string().min(1)]);
 const metadataSchema = z.object({
   accountKey: z.string().min(1).nullable().catch(null),
   plan: usagePlanSchema.nullable().catch(null),
+  observedAt: z.number().int().nonnegative().nullable().catch(null),
 });
 const windowMetadataSchema = z.object({
   kind: usageWindowKindSchema.catch("custom"),
   model: z.string().nullable().catch(null),
+  id: z.string().min(1).nullable().catch(null),
 });
+// Bridge results for signed-out and missing CLI states can omit these.
+const accountDefaults = { accountEmail: null, planLabel: null };
+const isOwnProvider = (provider: { id: string; pluginId?: string | null }) =>
+  provider.pluginId === PLUGIN_ID && provider.id === PROVIDER_ID;
 
 export function registerUsageSource(bb: BbPluginApi) {
   const cache = new Map<string, UsageMeasurement>();
@@ -56,10 +63,7 @@ export function registerUsageSource(bb: BbPluginApi) {
     });
     if (
       !providers.some(
-        (provider) =>
-          provider.id === providerId &&
-          provider.pluginId === "antigravity-native" &&
-          provider.id === "antigravity-native",
+        (provider) => provider.id === providerId && isOwnProvider(provider),
       )
     )
       throw new Error("Usage resource no longer exists.");
@@ -70,42 +74,47 @@ export function registerUsageSource(bb: BbPluginApi) {
       Date.now() - previous.observedAt < 60_000
     )
       return previous;
-    const promise = (async () => {
-      try {
-        const result = await bb.sdk.system.usageLimits({
-          hostId,
-          providerId,
-          refresh,
-        });
-        const usage = result[providerId];
-        if (!usage) throw new Error("Provider returned no usage information.");
-        const metadata = metadataSchema.parse(usage);
-        const value = usageMeasurementSchema.parse({
-          accountKey: metadata.accountKey,
-          observedAt:
-            usage.status === "ok" ? Date.now() : (previous?.observedAt ?? null),
-          usage: {
-            ...usage,
-            plan: metadata.plan,
-            ...(usage.status === "ok"
-              ? {
-                  windows: usage.windows.map((window, index) => ({
+    try {
+      const result = await bb.sdk.system.usageLimits({
+        hostId,
+        providerId,
+        refresh,
+      });
+      const usage = result[providerId];
+      if (!usage) throw new Error("Provider returned no usage information.");
+      const metadata = metadataSchema.parse(usage);
+      const value = usageMeasurementSchema.parse({
+        accountKey: metadata.accountKey,
+        // The bridge may answer from its cache, so keep its measurement time.
+        observedAt:
+          usage.status === "ok"
+            ? (metadata.observedAt ?? Date.now())
+            : (previous?.observedAt ?? null),
+        usage: {
+          ...accountDefaults,
+          ...usage,
+          plan: metadata.plan,
+          ...(usage.status === "ok"
+            ? {
+                windows: usage.windows.map((window, index) => {
+                  const { id, ...windowMetadata } =
+                    windowMetadataSchema.parse(window);
+                  return {
                     ...window,
-                    ...windowMetadataSchema.parse(window),
-                    id: `${index}:${window.label}`,
+                    ...windowMetadata,
+                    id: id ?? `${index}:${window.label}`,
                     cost: window.cost ?? null,
-                  })),
-                }
-              : {}),
-          },
-        });
-        cache.set(resourceId, value);
-        return value;
-      } catch {
-        return unavailable("Usage could not be collected from this machine.");
-      }
-    })();
-    return promise;
+                  };
+                }),
+              }
+            : {}),
+        },
+      });
+      cache.set(resourceId, value);
+      return value;
+    } catch {
+      return unavailable("Usage could not be collected from this machine.");
+    }
   };
   const collect = async (
     resourceId: string,
@@ -135,26 +144,20 @@ export function registerUsageSource(bb: BbPluginApi) {
                 hostId: host.id,
                 capability: "usage",
               });
-              return providers
-                .filter(
-                  (provider) =>
-                    provider.pluginId === "antigravity-native" &&
-                    provider.id === "antigravity-native",
-                )
-                .map((provider) => {
-                  const id = JSON.stringify([host.id, provider.id]);
-                  return {
-                    id,
-                    accountKey: cache.get(id)?.accountKey ?? null,
-                    providerId: provider.id,
-                    label: provider.displayName,
-                    scope: {
-                      kind: "host" as const,
-                      hostId: host.id,
-                      hostName: host.name,
-                    },
-                  };
-                });
+              return providers.filter(isOwnProvider).map((provider) => {
+                const id = JSON.stringify([host.id, provider.id]);
+                return {
+                  id,
+                  accountKey: cache.get(id)?.accountKey ?? null,
+                  providerId: provider.id,
+                  label: provider.displayName,
+                  scope: {
+                    kind: "host" as const,
+                    hostId: host.id,
+                    hostName: host.name,
+                  },
+                };
+              });
             }),
           )
         ).flat();

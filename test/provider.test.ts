@@ -6,14 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { experimental_acpLaunchSpecSchema } from "@get-bb/plugin-sdk/provider-bridge/acp";
-import {
-  experimental_runBridgeConformance,
-  experimental_formatConformanceReport,
-} from "@get-bb/plugin-sdk/provider-bridge/testing";
+import { experimental_runBridgeConformance } from "@get-bb/plugin-sdk/provider-bridge/testing";
+import { assertConformance } from "../scripts/conformance.ts";
 import { createTransport } from "../scripts/transport.ts";
-import { createProvider, PROVIDER_ID } from "../provider.ts";
+import { createProvider, DEFAULT_COMMAND, PROVIDER_ID } from "../provider.ts";
 
-test("launch configuration is valid and requires an executable", () => {
+test("launch configuration is valid and a blank command uses the default", () => {
   const provider = createProvider({ command: " /custom/agy ", sandbox: true });
   const launch = experimental_acpLaunchSpecSchema.parse(
     provider.experimental_bridgeOptions?.acpLaunchSpec,
@@ -24,10 +22,17 @@ test("launch configuration is valid and requires an executable", () => {
     insertAfterArgs: 1,
     full: ["--dangerously-skip-permissions"],
   });
-  assert.throws(
-    () => createProvider({ command: "  ", sandbox: false }),
-    /must not be empty/,
+  const blank = experimental_acpLaunchSpecSchema.parse(
+    createProvider({ command: "  ", sandbox: false }).experimental_bridgeOptions
+      ?.acpLaunchSpec,
   );
+  assert.equal(blank.command, DEFAULT_COMMAND);
+});
+
+test("sign-in hints name the configured command", () => {
+  const { strings } = createProvider({ command: "/opt/agy", sandbox: false });
+  assert.match(strings?.signInHint ?? "", /`\/opt\/agy acp --login`/);
+  assert.match(strings?.expiredHint ?? "", /`\/opt\/agy acp --login`/);
 });
 
 test("published bridge passes protocol conformance with native-shaped launch flags", async () => {
@@ -61,11 +66,7 @@ test("published bridge passes protocol conformance with native-shaped launch fla
       },
       timeoutMs: 5000,
     });
-    assert.equal(
-      report.passed,
-      true,
-      experimental_formatConformanceReport(report),
-    );
+    assertConformance(report);
     const launches = readFileSync(join(cwd, "launch.jsonl"), "utf8")
       .trim()
       .split("\n")

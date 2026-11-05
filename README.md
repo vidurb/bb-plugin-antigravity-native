@@ -8,7 +8,7 @@ The plugin registers `antigravity-native` using BB's published ACP bridge.
 Models, reasoning levels, and session modes come from the signed-in agent.
 BB handles streamed replies, tool calls, approvals, cancellation, MCP tools,
 and session resume. The plugin adds account quota reporting, native skill
-discovery, and BB’s manual compaction action.
+discovery, and BB's manual compaction action.
 
 ## Requirements
 
@@ -51,6 +51,7 @@ Settings are read at load time; reload after changes.
 - `command`: executable name on PATH or absolute path, default `agy`. It is
   executed directly, without a shell. `~` and shell variables are not expanded.
   A configured absolute path must be valid on every machine using the provider.
+  A blank value falls back to `agy` and logs a warning.
 - `sandbox`: pass Antigravity's `--sandbox`, default `false`.
 
 ```sh
@@ -75,21 +76,25 @@ BB's Provider usage panel can read Antigravity's weekly and five-hour quota
 windows on the selected machine. The collector invokes
 `agy -p /usage --output-format json`, checks that it performed zero model
 turns and consumed zero tokens, then maps the returned remaining fractions to
-BB's used percentages. Results are cached for 60 seconds; concurrent requests
-share one lookup. Errors are briefly cached and are never shown as zero usage.
+BB's used percentages. Results are cached for 60 seconds and report when they
+were measured; concurrent requests share one lookup. A missing CLI or a
+missing/expired sign-in is reported as that state. Failures are cached for 5
+seconds and are never shown as zero usage.
 
 The command currently returns structured `command.data.groups` in CLI 1.5.0.
 That output shape may change. If a future CLI unexpectedly generates a model
-turn, the collector stops further automatic reads. After updating the CLI,
-clear only this plugin's `quota-*.json` files in its **bridge data directory on
-the affected machine** to retry. No Google credentials are read or stored by
-the plugin. The cache contains quota windows and timestamps only.
+turn, the collector stops further automatic reads, and resumes by itself once
+the CLI reports a different version. No Google credentials are read or stored
+by the plugin. The cache contains quota windows and timestamps only.
 
-Health checks verify the executable, native `acp` support, and an authenticated
-ACP session without sending a model prompt. They report missing CLI,
-unsupported CLI, missing/expired authentication, unknown failure, or ready.
-They coalesce requests and cache results for 30 seconds. CLI subprocesses have
-time and output limits and are stopped when the bridge closes.
+Health checks verify the executable and native `acp` support, then use the same
+quota read to confirm the sign-in. They send no model prompt and open no ACP
+session, because each native session leaves a permanent conversation on disk.
+They report missing CLI, unsupported CLI, missing/expired authentication,
+unknown failure, or ready. Credentials that the native `/usage` command cannot
+report on show as unknown; this has only been tested with Google sign-in.
+Health requests coalesce and cache results for 30 seconds. CLI subprocesses
+have time and output limits and are stopped when the bridge closes.
 
 ## Compaction and native skills
 
@@ -114,6 +119,7 @@ for native precedence and customization rules.
 
 ```sh
 npm ci
+npm run format:check
 npm run typecheck
 npm test
 npm run build
@@ -125,18 +131,20 @@ npm run test:skills
 
 `npm test` runs offline against a deterministic ACP peer through the real
 published BB bridge. It covers protocol conformance, streamed turns, resume,
-launch flags, launch-spec validation, quota parsing and caching, health states,
-process cancellation/output bounds, native roots, and branding. Tests run the bridge in a child
-process because it owns stdout and exits when its stdin closes.
+launch flags, launch-spec validation, quota parsing and caching, health states
+against a fake CLI, process cancellation/output bounds, native roots, and
+branding. Tests run the bridge in a child process because it owns stdout and
+exits when its stdin closes.
 
 The opt-in live tests use the local signed-in account. `test:live` checks chat,
-resume, and completed compaction, and `test:tools` also spends model quota. `test:tools` exposes a read-only BB
-MCP tool and verifies that the agent calls it and returns a random code
-available only in the tool result. `test:maintenance` verifies native quotas and
-authentication; `test:skills` verifies native discovery of a temporary workspace
-skill without a model prompt. `AGY_COMMAND` overrides the test executable.
-Set `AGY_TEST_BUNDLE=1` to test the built host artifact instead of TypeScript
-source (run the build first).
+resume, and completed compaction, and `test:tools` also spends model quota.
+`test:tools` exposes a read-only BB MCP tool and verifies that the agent calls
+it and returns a random code available only in the tool result.
+`test:maintenance` verifies native quotas and authentication; `test:skills`
+verifies native discovery of a temporary workspace skill without a model prompt,
+and like any native session it leaves a conversation on disk. `AGY_COMMAND`
+overrides the test executable. Set `AGY_TEST_BUNDLE=1` to test the built host
+artifact instead of TypeScript source (run the build first).
 
 ## Current limits
 
@@ -145,9 +153,9 @@ modes remain available through ACP where supported by BB.
 
 SDK 0.6.104's generic bridge advertises `fork: tip` in its protocol handshake
 before it discovers whether an agent supports forks. BB intersects this with
-this plugin's `fork: none` declaration. The direct live conformance test
-reports that specific upstream mismatch and requires all other checks to
-pass; it does not claim fork support.
+this plugin's `fork: none` declaration. The direct conformance tests accept
+that specific upstream mismatch and require all other checks to pass; they do
+not claim fork support.
 
 The global BB Providers settings page currently queries the server machine.
 An installed-only provider can therefore appear in a Mac's thread composer

@@ -5,6 +5,10 @@ import {
   withoutBridgeRuntimeEnv,
 } from "@get-bb/plugin-sdk/provider-bridge";
 
+// A descendant can inherit stdout and hold "close" open after the CLI exits.
+const EXIT_DRAIN_MS = 500;
+const VERSION_TIMEOUT_MS = 4000;
+
 const children = new Set<ChildProcess>();
 export function startProcess(spec: CommandSpec) {
   const child = spawn({
@@ -20,7 +24,7 @@ export function terminateProcess(child: ChildProcess) {
   kill(child, "SIGTERM");
   const force = setTimeout(() => kill(child, "SIGKILL"), 1000);
   force.unref();
-  child.once("close", () => clearTimeout(force));
+  child.once("exit", () => clearTimeout(force));
 }
 export interface CommandResult {
   code: number | null;
@@ -36,46 +40,81 @@ export interface CommandSpec {
 export type Runner = (
   spec: CommandSpec,
   timeoutMs?: number,
+  /** Stop the command and return its output once this text appears. */
+  stopOn?: RegExp,
 ) => Promise<CommandResult>;
-export const run: Runner = (spec, timeoutMs = 25000) =>
+export const run: Runner = (spec, timeoutMs = 25000, stopOn) =>
   new Promise((resolve, reject) => {
     const child = startProcess(spec);
     let stdout = "",
       stderr = "",
       size = 0,
-      failure: Error | undefined;
+      stopped = false,
+      settled = false,
+      failure: Error | undefined,
+      drain: ReturnType<typeof setTimeout> | undefined;
     const terminate = () => terminateProcess(child);
     const timer = setTimeout(() => {
       failure = new Error("Antigravity command timed out.");
       terminate();
     }, timeoutMs);
+    const settle = (code: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(drain);
+      children.delete(child);
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      if (failure) reject(failure);
+      else resolve({ code, stdout, stderr });
+    };
     const append = (chunk: Buffer, lane: "stdout" | "stderr") => {
-      if (failure) return;
+      if (failure || stopped) return;
       size += chunk.length;
       if (size > 1024 * 1024) {
         failure = new Error("Antigravity output exceeded 1 MiB.");
         terminate();
         return;
       }
-      if (lane === "stdout") stdout += chunk.toString();
-      else stderr += chunk.toString();
+      const text = chunk.toString();
+      if (lane === "stdout") stdout += text;
+      else stderr += text;
+      if (stopOn?.test(text)) {
+        stopped = true;
+        terminate();
+      }
     };
     child.stdout?.on("data", (chunk) => append(chunk, "stdout"));
     child.stderr?.on("data", (chunk) => append(chunk, "stderr"));
     child.once("error", (error) => {
-      clearTimeout(timer);
-      children.delete(child);
-      reject(error);
+      failure ??= error;
+      settle(null);
     });
-    child.once("close", (code) => {
-      clearTimeout(timer);
-      children.delete(child);
-      if (failure) reject(failure);
-      else resolve({ code, stdout, stderr });
+    child.once("exit", (code) => {
+      drain = setTimeout(() => settle(code), EXIT_DRAIN_MS);
     });
+    child.once("close", (code) => settle(code));
     child.stdin?.on("error", () => {});
     child.stdin?.end();
   });
+export async function readCliVersion(
+  runner: Runner,
+  command: string,
+  env: Record<string, string> = {},
+): Promise<string | null> {
+  try {
+    const version = await runner(
+      { command, args: ["--version"], env },
+      VERSION_TIMEOUT_MS,
+    );
+    return (
+      version.stdout.trim().match(/\b\d+\.\d+\.\d+(?:-[\w.-]+)?\b/)?.[0] ?? null
+    );
+  } catch {
+    return null;
+  }
+}
 export function stopMaintenanceProcesses() {
   for (const child of children) kill(child, "SIGKILL");
   children.clear();

@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-antigravity-native",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run BB threads using the native agy acp server.",
   "type": "module",
   "license": "MIT",
@@ -28,6 +28,8 @@
   "scripts": {
     "build": "bb plugin build .",
     "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "test:live": "node --experimental-strip-types scripts/smoke.ts",
     "test:tools": "node --experimental-strip-types scripts/smoke-tools.ts",
@@ -40,6 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "prettier": "^3.9.10",
     "typescript": "^5.7.0"
   }
 }

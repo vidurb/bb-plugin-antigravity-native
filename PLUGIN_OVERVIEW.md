@@ -7,8 +7,8 @@ launches Google's native `agy acp` server on the machine running your thread.
 - Streamed replies, tool activity, approvals, and session resume through BB's
   shared ACP bridge.
 - BB-provided MCP tools, with isolated native server sessions.
-- Account quota windows and reset times in BB’s Provider usage panel.
-- Native skill discovery and BB’s manual compaction action.
+- Account quota windows and reset times in BB's Provider usage panel.
+- Native skill discovery and BB's manual compaction action.
 - A configurable executable path and optional Antigravity terminal sandbox.
 
 ## Requirements
@@ -26,7 +26,8 @@ ACP server. Normal sessions retain approval handling. BB full access passes
 `--dangerously-skip-permissions`.
 
 Quota reads use the native `/usage` command and are cached for 60 seconds.
-Health checks verify native ACP and cached authentication. Forks are not
+Health checks verify native ACP support and your sign-in without opening a
+session. Forks are not
 supported. Settings changes require a plugin reload. See the
 [project README](https://github.com/vidurb/bb-plugin-antigravity-native) for
 setup and validation details. This is an independent community plugin.

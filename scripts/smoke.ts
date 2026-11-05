@@ -8,6 +8,7 @@ import {
   experimental_runBridgeConformance,
   experimental_formatConformanceReport,
 } from "@get-bb/plugin-sdk/provider-bridge/testing";
+import { assertConformance } from "./conformance.ts";
 import { createTransport } from "./transport.ts";
 import { createProvider, PROVIDER_ID } from "../provider.ts";
 
@@ -67,17 +68,7 @@ try {
   rmSync(cwd, { recursive: true, force: true });
 }
 console.log(experimental_formatConformanceReport(report!));
-// SDK 0.6.104's shared bridge advertises fork:tip before probing the agent.
-// BB intersects this with our declaration (fork:none); direct conformance
-// cannot do that. Require all other cells to pass and this exact upstream error.
-for (const result of report!.results) {
-  if (result.id === "session/fork-identity" && result.status === "fail") {
-    assert.match(result.detail, /does not advertise session\/fork support/);
-    console.log(
-      "Known SDK limitation: native Antigravity has no fork; plugin declares fork:none.",
-    );
-  } else assert.notEqual(result.status, "fail", result.detail);
-}
+assertConformance(report!);
 
 assert.ok(sawCompaction, "Native /compact must produce a BB compaction item.");
 

@@ -32,11 +32,12 @@ machine if the `acp` subcommand is missing. Native logs are under
 The provider reports account quota windows in BB's Provider usage panel on the
 selected machine. Quota reads use native `agy -p /usage --output-format json`
 and are cached for 60 seconds. Never interpret a collection error as zero
-usage. A detected model turn disables subsequent automatic reads; after
-updating agy, clear only the plugin's `quota-*.json` bridge-cache files on that
-machine before retrying.
+usage. A detected model turn disables subsequent automatic reads until agy
+reports a different version; update agy on that machine to resume them.
 
-Health checks test native ACP and cached authentication without a model prompt.
+Health checks test native ACP support and the sign-in through the same quota
+read, with no model prompt or ACP session. A `not_installed`, `unauthenticated`,
+or `expired` usage state means fix the CLI or its sign-in on that machine.
 Use BB's built-in `/compact` action for session summarization.
 
 BB discovers standard skills in `~/.gemini/antigravity-cli/skills`,

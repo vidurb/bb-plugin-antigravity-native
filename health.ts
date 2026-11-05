@@ -1,96 +1,36 @@
-import { createInterface } from "node:readline";
-import { z } from "zod";
+import type { z } from "zod";
 import {
   experimental_resolveExecutablePath as resolveExecutable,
   providerHealthResultSchema,
 } from "@get-bb/plugin-sdk/provider-bridge";
-import { run, startProcess, terminateProcess, type Runner } from "./process.ts";
+import { readCliVersion, run, type Runner } from "./process.ts";
+import type { UsageResult } from "./usage.ts";
+
 type Status = "ready" | "unauthenticated" | "expired" | "unknown";
 export type HealthResult = z.infer<typeof providerHealthResultSchema>;
-const responseSchema = z.object({
-  id: z.number(),
-  result: z.unknown().optional(),
-  error: z.object({ message: z.string().optional() }).optional(),
-});
 export type AuthProbe = (
   command: string,
   env: Record<string, string>,
-  cwd?: string,
 ) => Promise<Status>;
-export const probeAuthentication: AuthProbe = (command, env, cwd) =>
-  new Promise((resolve) => {
-    let settled = false,
-      size = 0;
-    const child = startProcess({
-      command,
-      args: ["acp", "--process-per-session"],
-      env,
-      cwd,
-    });
-    const finish = (status: Status) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      lines.close();
-      terminateProcess(child);
-      resolve(status);
-    };
-    const timer = setTimeout(() => finish("unknown"), 15000);
-    const lines = createInterface({ input: child.stdout! });
-    child.on("error", () => finish("unknown"));
-    child.stdin?.on("error", () => finish("unknown"));
-    child.on("close", () => finish("unknown"));
-    const count = (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > 1024 * 1024) finish("unknown");
-    };
-    child.stdout?.on("data", count);
-    child.stderr?.on("data", count);
-    const send = (id: number, method: string, params: unknown) =>
-      child.stdin?.write(
-        JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n",
-      );
-    lines.on("line", (line) => {
-      let raw: unknown;
-      try {
-        raw = JSON.parse(line);
-      } catch {
-        return;
-      }
-      const parsed = responseSchema.safeParse(raw);
-      if (!parsed.success) return;
-      const message = parsed.data;
-      if (message.error) {
-        const text = message.error.message ?? "";
-        finish(
-          /expired|invalid_grant/i.test(text)
-            ? "expired"
-            : /auth|login|sign.in/i.test(text)
-              ? "unauthenticated"
-              : "unknown",
-        );
-        return;
-      }
-      if (message.id === 1) {
-        send(2, "session/new", { cwd: cwd ?? process.cwd(), mcpServers: [] });
-      } else if (message.id === 2) {
-        finish(
-          z.object({ sessionId: z.string().min(1) }).safeParse(message.result)
-            .success
-            ? "ready"
-            : "unknown",
-        );
-      }
-    });
-    send(1, "initialize", {
-      protocolVersion: 1,
-      clientInfo: { name: "bb-antigravity-health", version: "0.1.0" },
-      clientCapabilities: {},
-    });
-  });
+
+// ACP session/new leaves a permanent native conversation on disk, and ACP
+// initialize reports the same state signed in or out, so the session-free quota
+// read is the sign-in check.
+export function authStatusFromUsage(result: UsageResult): Status {
+  if (!result.supported) return "unknown";
+  switch (result.usage.status) {
+    case "ok":
+      return "ready";
+    case "unauthenticated":
+    case "expired":
+      return result.usage.status;
+    default:
+      return "unknown";
+  }
+}
 export function createHealthChecker(
+  probe: AuthProbe,
   runner: Runner = run,
-  probe: AuthProbe = probeAuthentication,
   resolve = resolveExecutable,
   now = Date.now,
 ) {
@@ -99,9 +39,8 @@ export function createHealthChecker(
   return async (
     command: string,
     env: Record<string, string> = {},
-    cwd?: string,
   ): Promise<HealthResult> => {
-    const key = JSON.stringify([command, Object.entries(env).sort(), cwd]);
+    const key = JSON.stringify([command, Object.entries(env).sort()]);
     const cached = cache.get(key);
     if (cached && now() - cached.at >= 0 && now() - cached.at < 30000)
       return cached.result;
@@ -109,6 +48,7 @@ export function createHealthChecker(
     if (existing) return existing;
     const promise = (async () => {
       let installedVersion: string | null = null;
+      const loginCommand = `${command} acp --login`;
       const result = (
         status: "not_installed" | "unsupported_version" | Status,
         statusMessage: string | null = null,
@@ -123,7 +63,7 @@ export function createHealthChecker(
           canUpdate: false,
           accountEmail: null,
           planLabel: null,
-          loginCommand: `${command} acp --login`,
+          loginCommand,
         },
       });
       try {
@@ -132,13 +72,7 @@ export function createHealthChecker(
             "not_installed",
             "Install Antigravity CLI on this machine.",
           );
-        const version = await runner(
-          { command, args: ["--version"], env },
-          4000,
-        );
-        installedVersion =
-          version.stdout.trim().match(/\b\d+\.\d+\.\d+(?:-[\w.-]+)?\b/)?.[0] ??
-          null;
+        installedVersion = await readCliVersion(runner, command, env);
         const help = await runner(
           { command, args: ["acp", "--help"], env },
           4000,
@@ -151,14 +85,14 @@ export function createHealthChecker(
             "unsupported_version",
             "This CLI does not expose native ACP. Update Antigravity CLI.",
           );
-        const status = await probe(command, env, cwd);
+        const status = await probe(command, env);
         return result(
           status,
           status === "ready"
             ? null
             : status === "unknown"
-              ? "Could not verify a native ACP session. Check the CLI logs."
-              : "Run agy acp --login on this machine.",
+              ? "Could not verify the Antigravity sign-in. Check the CLI logs."
+              : `Run ${loginCommand} on this machine.`,
         );
       } catch {
         return result(

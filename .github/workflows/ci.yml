@@ -14,5 +14,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - run: npx --yes --package=bb-app@0.48.1 bb plugin build .
