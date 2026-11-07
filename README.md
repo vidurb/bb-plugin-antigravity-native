@@ -70,6 +70,12 @@ Enabling the sandbox does not enable Antigravity's native Auto mode. Native
 permission requests in Accept Edits are forwarded to BB for your approval.
 Native session modes can also affect which actions require approval.
 
+The plugin does not pass BB's extra workspace directories, such as thread
+storage, to the agent. `agy` 1.5.1 and 1.5.3 run shell commands in the
+first-sorted of the session directory and those directories, so a checkout in
+`~/src` would run commands in `~/.bb/thread-storage`. As a result, Accept Edits
+asks for approval before writing to thread storage.
+
 ## Usage and health
 
 BB's Provider usage panel can read Antigravity's weekly and five-hour quota

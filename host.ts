@@ -19,6 +19,21 @@ let dataDir: string | undefined;
 const checkHealth = createHealthChecker(async (command, env) =>
   authStatusFromUsage(await collectUsage(command, dataDir, env)),
 );
+// agy 1.5.1 and 1.5.3 run shell commands in the first-sorted of cwd and
+// additionalDirectories, and BB always sends thread storage as one of them.
+function withoutAdditionalDirectories(raw: unknown, line: string) {
+  const options = (
+    raw as { params?: { options?: { providerOptions?: unknown } } } | null
+  )?.params?.options?.providerOptions;
+  if (
+    typeof options !== "object" ||
+    options === null ||
+    !("additionalWorkspaceWriteRoots" in options)
+  )
+    return line;
+  delete options.additionalWorkspaceWriteRoots;
+  return JSON.stringify(raw);
+}
 export const experimental_providerBridge = experimental_defineProviderBridge({
   start(context) {
     dataDir = context.dataDir;
@@ -37,7 +52,7 @@ export const experimental_providerBridge = experimental_defineProviderBridge({
       !envelope.success ||
       !["provider/usage", "provider/health"].includes(envelope.data.method)
     ) {
-      acp.handleLine(line);
+      acp.handleLine(withoutAdditionalDirectories(raw, line));
       return;
     }
     const { id, params } = envelope.data;

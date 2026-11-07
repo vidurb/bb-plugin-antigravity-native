@@ -23,6 +23,10 @@ Optional terminal containment:
 BB full access passes `--dangerously-skip-permissions`; normal sessions
 keep native approval requests. Do not change access to fix a failed tool.
 
+The provider does not pass extra workspace directories to agy, because agy 1.5.1
+and 1.5.3 can then run shell commands outside the project. Accept Edits therefore asks
+before writing to thread storage.
+
 The provider doesn't install agy or adapters. Update agy on the target
 machine if the `acp` subcommand is missing. Native logs are under
 `~/.gemini/antigravity-cli/log/acp-*.log`.

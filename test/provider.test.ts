@@ -46,7 +46,10 @@ test("published bridge passes protocol conformance with native-shaped launch fla
     fileURLToPath(new URL("./native-agent.mjs", import.meta.url)),
   );
   launch.permissionCli!.insertAfterArgs = 2;
-  launch.env = { AGY_TEST_LOG: join(cwd, "launch.jsonl") };
+  launch.env = {
+    AGY_TEST_LOG: join(cwd, "launch.jsonl"),
+    AGY_TEST_SESSION_LOG: join(cwd, "sessions.jsonl"),
+  };
   const transport = createTransport();
   try {
     const report = await experimental_runBridgeConformance({
@@ -61,7 +64,12 @@ test("published bridge passes protocol conformance with native-shaped launch fla
           permissionScope: "full",
           approvalReviewer: null,
           permissionEscalation: null,
-          providerOptions: { acpDialect: "acp", acpLaunchSpec: launch },
+          providerOptions: {
+            acpDialect: "acp",
+            acpLaunchSpec: launch,
+            // BB always sends thread storage here.
+            additionalWorkspaceWriteRoots: [join(cwd, "thread-storage")],
+          },
         },
       },
       timeoutMs: 5000,
@@ -78,6 +86,14 @@ test("published bridge passes protocol conformance with native-shaped launch fla
         "--dangerously-skip-permissions",
         "--process-per-session",
       ]);
+    const sessions = readFileSync(join(cwd, "sessions.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.method !== "session/prompt");
+    assert.ok(sessions.some((entry) => entry.method === "session/new"));
+    for (const { method, params } of sessions)
+      assert.equal(params.additionalDirectories, undefined, method);
   } finally {
     await transport.close?.();
     rmSync(cwd, { recursive: true, force: true });

@@ -33,6 +33,11 @@ const configOptions = [
 for await (const line of createInterface({ input: process.stdin })) {
   const m = JSON.parse(line);
   if (!m.method || m.id === undefined) continue;
+  if (process.env.AGY_TEST_SESSION_LOG && m.method.startsWith("session/"))
+    appendFileSync(
+      process.env.AGY_TEST_SESSION_LOG,
+      JSON.stringify({ method: m.method, params: m.params }) + "\n",
+    );
   let result = {};
   switch (m.method) {
     case "initialize":
@@ -41,8 +46,14 @@ for await (const line of createInterface({ input: process.stdin })) {
         agentInfo: { name: "Native fixture", version: "1.5.0" },
         agentCapabilities: {
           loadSession: true,
-          // Matches agy 1.5.0, which advertises no session/fork.
-          sessionCapabilities: { resume: {}, close: {}, load: {}, list: {} },
+          // Matches agy 1.5.x, which advertises no session/fork.
+          sessionCapabilities: {
+            resume: {},
+            close: {},
+            load: {},
+            list: {},
+            additionalDirectories: {},
+          },
         },
         authMethods: [],
       };
