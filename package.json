@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-antigravity-native",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Run BB threads using the native agy acp server.",
   "type": "module",
   "license": "MIT",
