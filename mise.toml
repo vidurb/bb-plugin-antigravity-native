@@ -1,6 +1,16 @@
 [tools]
+aube = { version = "2.9.0", workflow = ["release-plz.yml@refs/heads/main", "release.yml@refs/heads/main"] }
+hk = { version = "2.11.1", workflow = "release.yml" }
+jactionlint = { version = "2.5.0", workflow = "release.yaml" }
 node = "24.22.2"
 
 [tasks.setup]
-description = "Install locked npm dependencies"
-run = "npm ci"
+description = "Install mise tools, aube dependencies, and git hooks"
+run = [
+  "aube install --frozen-lockfile",
+  "hk install --mise",
+]
+
+[tasks.pre-commit]
+description = "Run pre-commit checks (same as the git hook)"
+run = "hk run pre-commit"
