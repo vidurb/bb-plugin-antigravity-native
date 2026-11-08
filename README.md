@@ -123,6 +123,15 @@ for native precedence and customization rules.
 
 ## Development and validation
 
+Install the pinned Node.js runtime, then dependencies:
+
+```sh
+mise install
+mise run setup
+```
+
+Or, with Node 24 already available:
+
 ```sh
 npm ci
 npm run format:check

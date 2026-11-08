@@ -1,0 +1,6 @@
+[tools]
+node = "24.22.2"
+
+[tasks.setup]
+description = "Install locked npm dependencies"
+run = "npm ci"
