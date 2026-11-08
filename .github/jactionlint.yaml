@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/jdx/jactionlint/main/schema/jactionlint-config.json
+profile: default
+rules:
+  # Tag pins are updated deliberately; full SHAs are enforced in org rulesets if needed.
+  unpinned-uses: off

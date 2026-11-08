@@ -123,19 +123,31 @@ for native precedence and customization rules.
 
 ## Development and validation
 
+Install pinned tooling (Node, aube, hk, jactionlint), project dependencies from
+`package-lock.json`, and git hooks:
+
 ```sh
-npm ci
-npm run format:check
-npm run typecheck
-npm test
-npm run build
-npm run test:live
-npm run test:tools
-npm run test:maintenance
-npm run test:skills
+mise install
+mise run setup
 ```
 
-`npm test` runs offline against a deterministic ACP peer through the real
+Run checks and scripts through aube (installs dependencies when needed):
+
+```sh
+aube run format:check
+aube run typecheck
+aube run test
+aube run build
+aube run test:live
+aube run test:tools
+aube run test:maintenance
+aube run test:skills
+```
+
+Pre-commit runs staged Prettier and `jactionlint` on workflow files (`hk` via
+`mise run setup`). Dry-run with `mise run pre-commit` or `hk run pre-commit`.
+
+`aube run test` runs offline against a deterministic ACP peer through the real
 published BB bridge. It covers protocol conformance, streamed turns, resume,
 launch flags, launch-spec validation, quota parsing and caching, health states
 against a fake CLI, process cancellation/output bounds, native roots, and
