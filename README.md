@@ -37,8 +37,10 @@ bb provider models antigravity-native --machine <machine-name>
 ```
 
 Choose **Antigravity Native** in the provider picker. Select a session mode
-such as Plan from the agent's mode picker. The provider appears only on
-machines where BB finds the configured command.
+such as Plan, or Auto with `agy` 1.5.4 and later, from the agent's mode picker.
+The provider appears only on machines where BB finds the configured command.
+With `agy` 1.5.8 and later, the agent reports the session's context window
+usage, which BB shows for the thread.
 
 BB's server loads the plugin; the enrolled machine running the thread
 launches `agy`. The server itself does not need Antigravity installed.
@@ -63,10 +65,14 @@ bb plugin reload antigravity-native
 Launch is `agy acp --process-per-session`, with optional `--sandbox`.
 Process isolation enables editor-provided HTTP MCP servers. Normal BB
 sessions preserve native permission requests and BB's approval handling.
-BB full access additionally passes `--dangerously-skip-permissions`.
+BB full access additionally passes `--dangerously-skip-permissions`. Since
+`agy` 1.5.2, commands on its system denylist are still blocked in full access.
 
 BB's **Approve for me** mode is not supported by the shared ACP bridge.
-Enabling the sandbox does not enable Antigravity's native Auto mode. Native
+Antigravity's own Auto mode is different: it is a session mode in the agent's
+mode picker (`agy` 1.5.4 and later). It approves edits inside the workspace,
+runs commands in `agy`'s terminal sandbox, and asks before commands that would
+leave it. The plugin's `sandbox` setting does not turn on Auto mode. Native
 permission requests in Accept Edits are forwarded to BB for your approval.
 Native session modes can also affect which actions require approval.
 

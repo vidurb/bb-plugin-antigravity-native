@@ -23,7 +23,9 @@ charges under your authentication plan.
 Select Antigravity Native in BB's provider picker. The plugin runs
 `agy acp --process-per-session`; it does not install adapters or a separate
 ACP server. Normal sessions retain approval handling. BB full access passes
-`--dangerously-skip-permissions`.
+`--dangerously-skip-permissions`; recent CLI versions still block commands on
+the CLI's system denylist. Antigravity's Auto mode is available from the mode
+picker with CLI 1.5.4 and later.
 
 Quota reads use the native `/usage` command and are cached for 60 seconds.
 Health checks verify native ACP support and your sign-in without opening a

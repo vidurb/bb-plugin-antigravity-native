@@ -11,7 +11,9 @@ that will run the thread. Verify `agy acp --help`, then sign in with
 
 Inspect with `bb provider models antigravity-native --machine <name>`.
 Models, reasoning, and session modes come from the native ACP server.
-Choose Plan from the session mode picker when wanted.
+Choose Plan, or Auto with agy 1.5.4 and later, from the session mode picker.
+agy's Auto mode is not BB's Approve for me, which this provider doesn't
+support. agy 1.5.8 and later report context window usage, which BB shows.
 
 If agy isn't on the daemon's PATH, set an absolute executable path with
 `bb plugin config antigravity-native set command /absolute/path/to/agy`,
@@ -20,7 +22,8 @@ target machine; no shell expansion is applied.
 
 Optional terminal containment:
 `bb plugin config antigravity-native set sandbox true`, then reload.
-BB full access passes `--dangerously-skip-permissions`; normal sessions
+BB full access passes `--dangerously-skip-permissions`, but agy 1.5.2 and
+later still block commands on agy's system denylist; normal sessions
 keep native approval requests. Do not change access to fix a failed tool.
 
 The provider does not pass extra workspace directories to agy, because agy 1.5.1
